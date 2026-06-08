@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        A minimal base theme with no action bar. Compose's MaterialTheme
+        supplies the actual UI styling at runtime, so this only needs to
+        provide a clean window background and remove the platform action bar.
+    -->
+    <style name="Theme.NestedList" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
