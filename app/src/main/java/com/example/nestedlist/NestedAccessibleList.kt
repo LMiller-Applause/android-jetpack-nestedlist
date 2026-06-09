@@ -62,13 +62,44 @@ package com.example.nestedlist
  *                                   ("in list, 2 items") -- NOT a spoken level
  *                                   number and NOT a reset position counter.
  *
- *  4. stateDescription           -> announces "Expanded" / "Collapsed" for the
- *                                   branch rows so the user knows the result of
- *                                   activating the row.
+ *  4. expand() / collapse()      -> the branch rows use these dedicated semantics
+ *                                   ACTIONS (mapping to AccessibilityNodeInfo
+ *                                   .ACTION_EXPAND / ACTION_COLLAPSE). Registering
+ *                                   one of them does TWO things for TalkBack:
+ *                                     a) STATE: a node that can be collapsed is, by
+ *                                        definition, currently expanded, so TalkBack
+ *                                        derives and speaks "expanded" / "collapsed"
+ *                                        on its own. We therefore DO NOT also set a
+ *                                        stateDescription -- supplying both makes
+ *                                        TalkBack announce the state twice.
+ *                                     b) ACTION: it exposes a semantically precise
+ *                                        "Expand" / "Collapse" action in TalkBack's
+ *                                        actions menu (three-finger "more options",
+ *                                        or swipe up-then-right), and to Switch
+ *                                        Access, Braille displays, and automation.
+ *                                   We register only the ONE action matching the
+ *                                   current state so the menu never offers a no-op
+ *                                   (never "Collapse" on an already-closed row).
  *
- *  5. onClickLabel / Role        -> tells TalkBack what the double-tap will DO
- *                                   ("Expand", "Collapse", "Select") and what
- *                                   kind of control it is (Checkbox for leaves).
+ *                                   The branch is still wrapped in clickable() so a
+ *                                   touch tap -- and a TalkBack double-tap, which
+ *                                   maps to ACTION_CLICK -- toggles it. That
+ *                                   clickable is given NO onClickLabel: the action
+ *                                   is already named by expand()/collapse(), and
+ *                                   labelling the click as well would speak the verb
+ *                                   twice. TRADE-OFF of this approach: the primary
+ *                                   double-tap hint is the generic "double tap to
+ *                                   activate" -- the precise "Expand"/"Collapse"
+ *                                   verb lives in the actions menu, not on the
+ *                                   double-tap. (Use clickable's onClickLabel +
+ *                                   stateDescription instead if you want that verb
+ *                                   on the double-tap; do not combine the two
+ *                                   approaches, or TalkBack double-speaks.)
+ *
+ *  5. toggleable / Role          -> LEAF rows use toggleable(Role.Checkbox). This
+ *                                   supplies the click target, the on/off value,
+ *                                   the "checkbox" role, and an automatic
+ *                                   "checked" / "not checked" announcement.
  *
  *  6. mergeDescendants = true    -> collapses the icon + text of a single row
  *                                   into ONE focusable element, so the user
@@ -79,10 +110,13 @@ package com.example.nestedlist
  *    - Swipe to the title:  "Product Categories, heading"
  *    - Entering a category list (focus crosses the container):
  *                           "...in list, 2 items"   <- announced ONCE on entry
- *    - First category:      "Electronics, Collapsed. Double tap to expand."
+ *    - First category:      "Electronics, collapsed, button.
+ *                            Double tap to activate."   <- state is derived from
+ *                            the expand action; the "Expand" verb itself sits in
+ *                            the actions menu, not in this primary hint.
  *    - After expanding, entering the subgroup:
  *                           "...in list, 2 items"   <- the depth cue you get
- *    - A child branch:      "Computers, Collapsed. Double tap to expand."
+ *    - A child branch:      "Computers, collapsed, button. Double tap to activate."
  *    - A leaf product:      "Laptops, not checked, checkbox.
  *                            Double tap to toggle."
  *
@@ -97,8 +131,9 @@ package com.example.nestedlist
  *      cue is the new size announcement when you enter a nested sublist.
  *
  *  What IS reliably spoken: the heading, the role (button / checkbox), the
- *  state (Expanded / Collapsed / checked), the action label, and the list
- *  size on entry. Those are the announcements to validate your demo against.
+ *  state (expanded / collapsed / checked), the "Expand"/"Collapse" action in the
+ *  actions menu, and the list size on entry. Those are the announcements to
+ *  validate this screen against.
  */
 
 import androidx.compose.foundation.clickable
@@ -125,12 +160,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.CollectionInfo
 import androidx.compose.ui.semantics.CollectionItemInfo
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.collapse
 import androidx.compose.ui.semantics.collectionInfo
 import androidx.compose.ui.semantics.collectionItemInfo
+import androidx.compose.ui.semantics.expand
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 
@@ -318,11 +354,14 @@ private fun TreeNodeRow(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(start = indent, top = 10.dp, bottom = 10.dp)
-                    // clickable() with onClickLabel: the label tells TalkBack
-                    // what the double-tap DOES ("Expand" or "Collapse"),
-                    // rather than the generic "Activate".
+                    // clickable() WITHOUT onClickLabel. The row still needs a click
+                    // so a touch tap -- and a TalkBack double-tap, which maps to
+                    // ACTION_CLICK -- toggles it. We omit onClickLabel on purpose:
+                    // the action is named by expand()/collapse() below, and naming
+                    // it here too would make TalkBack speak the verb twice. The
+                    // cost is that the double-tap hint is the generic "activate";
+                    // the precise "Expand"/"Collapse" verb lives in the actions menu.
                     .clickable(
-                        onClickLabel = if (isOpen) "Collapse" else "Expand",
                         role = Role.Button,
                         onClick = { expanded[node.id] = !isOpen }
                     )
@@ -334,17 +373,29 @@ private fun TreeNodeRow(
                             columnIndex = 0,
                             columnSpan = 1
                         )
-                        // stateDescription announces the current open/closed
-                        // state so the user knows what they are toggling.
-                        stateDescription = if (isOpen) "Expanded" else "Collapsed"
                         role = Role.Button
+
+                        // expand()/collapse(): the dedicated open/close semantics
+                        // action. Its presence is BOTH the action (offered in
+                        // TalkBack's actions menu) AND the state cue -- TalkBack
+                        // says "collapsed" when expand() is set and "expanded" when
+                        // collapse() is set. We therefore set NO stateDescription;
+                        // adding one would announce the state twice. Only the action
+                        // matching the current state is registered, so the menu
+                        // never offers a no-op. The lambda performs the toggle and
+                        // returns true to report that it handled the action.
+                        if (isOpen) {
+                            collapse { expanded[node.id] = false; true }
+                        } else {
+                            expand { expanded[node.id] = true; true }
+                        }
                     }
             ) {
                 Icon(
                     imageVector = if (isOpen) Icons.Filled.KeyboardArrowDown
                     else Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    // Decorative arrow: the open/closed state is already in
-                    // stateDescription, so don't re-announce it here.
+                    // Decorative arrow: the open/closed state is already conveyed
+                    // by the expand()/collapse() action, so don't re-announce it.
                     contentDescription = null
                 )
                 Spacer(Modifier.width(12.dp))
