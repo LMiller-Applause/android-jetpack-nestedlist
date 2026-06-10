@@ -8,18 +8,34 @@ Use it to (a) feel how a correctly-built nested list behaves under TalkBack and
 (b) see the exact semantics APIs Google recommends — then apply the same
 pattern to your own list.
 
-The accessibility logic — and a long comment block explaining what TalkBack
-*actually* announces vs. what it does not — lives in
-[`NestedAccessibleList.kt`](app/src/main/java/com/example/nestedlist/NestedAccessibleList.kt).
+The app ships **two variants of the same accessible tree**, selectable with a
+segmented-button switcher at the top of the screen. They render identically to
+TalkBack; only the Compose container differs:
+
+- **Column** — [`NestedAccessibleList.kt`](app/src/main/java/com/example/nestedlist/NestedAccessibleList.kt):
+  the baseline. Plain nested `Column`s, a small fixed tree composed eagerly.
+  This is where the accessibility logic — and a long comment block explaining
+  what TalkBack *actually* announces vs. what it does not — lives.
+- **LazyColumn** — [`LazyNestedAccessibleList.kt`](app/src/main/java/com/example/nestedlist/LazyNestedAccessibleList.kt):
+  the same tree built for large / on-demand data with a `LazyColumn` outer
+  list plus nested collections. Read the baseline first; this file documents
+  only what changes (and why) when the outer container becomes lazy — explicit
+  `CollectionInfo` to supply the count a lazy list omits, hoisted state keyed
+  by node id, and a stable per-item `key` so state and focus survive recycling.
 
 ## What the demo contains
 
 ```
-Heading: "Product Categories"
-└─ Level 1: Category        (expand / collapse, Role.Button)
-   └─ Level 2: Subcategory  (expand / collapse, Role.Button)
-      └─ Level 3: Product   (selectable, Role.Checkbox)
+Column variant            LazyColumn variant
+Heading: "Product         Heading: "Departments"
+ Categories"
+└─ Category    (expand)   └─ Department  (expand)
+   └─ Subcat.  (expand)      └─ Team      (expand)
+      └─ Product (checkbox)     └─ Function (checkbox)
 ```
+
+Level 1 & 2 are expand/collapse branches (`Role.Button`); Level 3 leaves are
+selectable (`Role.Checkbox`).
 
 ## Project layout
 
@@ -34,8 +50,9 @@ app/
   src/main/
     AndroidManifest.xml
     java/com/example/nestedlist/
-      MainActivity.kt                 thin host: theme + scaffold + scroll
-      NestedAccessibleList.kt         the accessible nested list
+      MainActivity.kt                 thin host: theme + scaffold + demo switcher
+      NestedAccessibleList.kt         the accessible nested list (Column baseline)
+      LazyNestedAccessibleList.kt     the same tree, LazyColumn variant
     res/values/
       strings.xml
       themes.xml
@@ -93,7 +110,9 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 1. On the device: **Settings ▸ Accessibility ▸ TalkBack ▸ On**
    (or hold both volume keys if the shortcut is enabled).
 2. Launch **Nested List A11y**.
-3. Swipe right/left to move focus; double-tap to activate the focused row.
+3. Use the **Column / LazyColumn** switcher at the top to pick a variant — both
+   announce identically; only the underlying container differs.
+4. Swipe right/left to move focus; double-tap to activate the focused row.
 
 ### What you should hear (realistic expectations)
 
