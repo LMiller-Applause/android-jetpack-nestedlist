@@ -141,6 +141,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.selection.toggleable
@@ -310,15 +311,22 @@ private fun TreeNodeRow(
             verticalAlignment = Alignment.CenterVertically,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = indent, top = 10.dp, bottom = 10.dp)
                 // toggleable() gives us: a click target, the on/off state,
                 // Role.Checkbox (so TalkBack says "checkbox"), and an
                 // automatic state announcement ("checked"/"not checked").
+                // It is placed BEFORE heightIn/padding so the whole row -- not
+                // just the glyph -- is the tap/keyboard/switch target.
                 .toggleable(
                     value = isChecked,
                     role = Role.Checkbox,
                     onValueChange = { selected[node.id] = it }
                 )
+                // Guarantee a >=48dp touch target. A bare clickable/toggleable Row
+                // is NOT covered by Material's automatic 48dp enforcement (that
+                // applies only to Material components like Checkbox), so below 48dp
+                // would trip the Accessibility Scanner and hurt switch/motor users.
+                .heightIn(min = 48.dp)
+                .padding(start = indent, top = 10.dp, bottom = 10.dp)
                 // mergeDescendants groups icon + text into ONE focus stop.
                 // collectionItemInfo records this leaf's position in the node
                 // tree. Because we supply this along with collectionInfo,
@@ -353,7 +361,6 @@ private fun TreeNodeRow(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(start = indent, top = 10.dp, bottom = 10.dp)
                     // clickable() WITHOUT onClickLabel. The row still needs a click
                     // so a touch tap -- and a TalkBack double-tap, which maps to
                     // ACTION_CLICK -- toggles it. We omit onClickLabel on purpose:
@@ -361,10 +368,14 @@ private fun TreeNodeRow(
                     // it here too would make TalkBack speak the verb twice. The
                     // cost is that the double-tap hint is the generic "activate";
                     // the precise "Expand"/"Collapse" verb lives in the actions menu.
+                    // Placed BEFORE heightIn/padding so the whole row is the target.
                     .clickable(
                         role = Role.Button,
                         onClick = { expanded[node.id] = !isOpen }
                     )
+                    // Guarantee a >=48dp touch target (see the leaf row note above).
+                    .heightIn(min = 48.dp)
+                    .padding(start = indent, top = 10.dp, bottom = 10.dp)
                     .semantics(mergeDescendants = true) {
                         // Position of this branch within its parent group.
                         collectionItemInfo = CollectionItemInfo(
