@@ -1,8 +1,10 @@
 # Nested List A11y — TalkBack demo
 
-A standalone, single-screen Jetpack Compose app demonstrating a **three-level
-nested interactive list** that is implemented with first-party Compose
-semantics only (no third-party libraries, no custom `AccessibilityDelegate`).
+A standalone, single-screen Jetpack Compose app demonstrating **two container
+variants of a three-level nested interactive list**, implemented with
+first-party Compose semantics only (no third-party libraries, no custom
+`AccessibilityDelegate`). The two variants are swapped in place on the one
+screen — there is no navigation.
 
 Use it to (a) feel how a correctly-built nested list behaves under TalkBack and
 (b) see the exact semantics APIs Google recommends — then apply the same
@@ -116,12 +118,18 @@ adb install -r app\build\outputs\apk\debug\app-debug.apk
 
 ### What you should hear (realistic expectations)
 
+These examples use the **Column** variant (the "Product Categories" tree); the
+**LazyColumn** variant behaves the same way over its "Departments" tree, with
+its own announcements documented in
+[`LazyNestedAccessibleList.kt`](app/src/main/java/com/example/nestedlist/LazyNestedAccessibleList.kt).
+
 - Title: **"Product Categories, heading"** — reachable via heading navigation.
 - Entering a list container: the list **size is spoken once**, e.g.
   *"in list, 2 items"*. Entering an expanded subgroup reannounces the new
   size — that entry cue is the **depth signal**.
-- A branch row: **"Electronics, Collapsed. Double tap to expand."**
-- A leaf row: **"Laptops, not checked, checkbox. Double tap to toggle."**
+- A branch row: **"Electronics, collapsed, 1 of 2, in list, 2 items, Double tap
+  to activate actions available. Use Tap with three fingers to view."**
+- A leaf row: **"Laptops checkbox, not checked, 1 of 2. In list, 2 items."**
 
 ### Per-item index ("n of m") announcements
 
@@ -134,3 +142,29 @@ However, this cannot be 100% relied upon across all environments:
 
 ### What is NOT spoken
 - **No spoken hierarchy "level"** — TalkBack has no tree/node depth role on Android. The primary depth signal is the size announcement when entering a nested subgroup.
+
+---
+
+## Keyboard accessibility
+
+An interactive list **should be fully operable with a hardware keyboard or D-pad**,
+not just touch and TalkBack — it's part of the same accessibility baseline.
+
+This demo gets that for free by sticking to first-party interactive modifiers and
+Material components. Because each row uses `Modifier.clickable` / `Modifier.toggleable`
+(and the variant switcher is a Material `SegmentedButton`), every control is
+focusable and operable with no extra code:
+
+- **Tab / arrow keys (or D-pad)** move focus between the switcher and the rows.
+- **Enter** (also **NumPad Enter** or **D-pad center**) activates a branch
+  (expand/collapse) or toggles a leaf checkbox.
+
+> **Gotcha:** Compose's `clickable`/`toggleable` activate on Enter / NumPad Enter /
+> D-pad center — **not the Space bar**, unlike native Android Views and HTML
+> buttons. If you need Space to activate too, add an `onKeyEvent` handler for
+> `Key.Spacebar` yourself.
+
+Test it by pairing a Bluetooth/USB keyboard, or use the emulator's D-pad
+(**arrow keys + Enter**). The takeaway for your own lists: build interactive rows
+from `clickable`/`toggleable` rather than raw pointer-input handling, and keyboard
+focus and Enter/D-pad activation come along with the click semantics.
